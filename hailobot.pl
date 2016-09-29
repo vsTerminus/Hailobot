@@ -9,6 +9,8 @@ use Net::Discord;
 use Net::Twitter;
 use Config::Tiny;
 use Mojo::IOLoop;
+use Reddit::Client;
+use Net::Async::LastFM;
 
 # Fallback to "config.ini" if the user does not pass in a config file.
 my $config_file = $ARGV[0] // 'config.ini';
@@ -17,6 +19,21 @@ say localtime(time) . " - Loaded Config: $config_file";
 
 # Create the Hailo Object
 my $hailo = Hailo->new({'brain' => $config->{'hailo'}->{'brain_file'}});
+
+# Create the Net::Async::LastFM object
+my $lastfm = Net::Async::LastFM->new(
+    api_key     => $config->{'lastfm'}->{'api_key'}
+);
+
+
+#######################
+#
+#   Reddit
+#
+#######################
+
+#my $reddit = 
+
 
 #######################
 #
@@ -154,6 +171,22 @@ my $discord = Net::Discord->new(
     'verbose'   => $config->{'discord'}->{'verbose'},
 );
 
+my %commands = (
+    'np' => { 'func' => \&cmd_nowplaying }
+);
+
+sub cmd_nowplaying
+{
+    my ($channel, $author, $user) = @_;
+
+    $user = $author unless defined $user and length $user > 0;
+
+    my $np = $lastfm->nowplaying($user);
+
+    $discord->send_message( $channel, "NP: " . $np );
+}
+
+
 sub discord_on_ready
 {
     my ($hash) = @_;
@@ -186,23 +219,33 @@ sub discord_on_message_create
 
     if ( $msg =~ /^$discord_name/i )
     {
-        $msg =~ s/^$discord_name.? ?//i;   # Remove the username. Can I do this as part of the if statement?
+        $msg =~ s/^$discord_name.? ?(\w+)? ?(.*)$//i;   # Remove the username. Can I do this as part of the if statement?
 
-        $discord->start_typing($channel); # Tell the channel we're thinking about a response
-        my $reply = $hailo->reply($msg);    # Sometimes this takes a while.
-        $discord->send_message( $channel, $reply ); # Send the response.
-    
+        # We're going to do a few very basic commands. Nothing fancy. Probably doesn't warrant
+        # its own commands module.
+        if ( defined $1 and exists $commands{$1} )
+        {
+            # Do the command.
+            $commands{$1}->{func}->($channel, $author->{'username'}, $2);
+        }
+        else # If there is no command, generate a random response.
+        {
+            $discord->start_typing($channel); # Tell the channel we're thinking about a response
+            my $reply = $hailo->reply($msg);    # Sometimes this takes a while.
+            $discord->send_message( $channel, $reply ); # Send the response.
+        }
     }
 
 }
 
 if ( $config->{'discord'}->{'use_discord'} )
 {
-    # Establish the websocket and start the listener.
-    # This really should be the last line, because nothing below it will ever be executed.
+    # Configure the websocket connection for Discord Gateway
     $discord->init();
+
+    # Kill the gateway every 15 seconds so we can test reconnecting
+    # Mojo::IOLoop->recurring(15 => sub { $discord->disconnect("Disconnect Timer Fired") });
 }
 
 # Start the IOLoop unless it is already running. 
-# Since Discord also starts the IOLoop we will only get here if the bot is not using Discord.
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;

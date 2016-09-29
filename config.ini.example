@@ -17,10 +17,15 @@ order = 4
 # 1 = yes, 0 = no
 use_reddit = 1
 
-# Subreddits
-# Put these on a line, separated by a space. No /r/, just the name of the subreddit.
-# Use "/" for the frontpage if you want it.
-subreddits = circlejerk games politics
+# Initially this did not require you to have a reddit account, but in the interest of being able to use the account's own subscriptions rather than a text file, this is now necessary.
+# For Authentication you'll need to log in to reddit with the bot's account, go to Preferences -> Apps and create a new app. Select "Script" as the type.
+# Then enter your Application ID, Secret, Username, and Password below.
+# The code is open source, so you can see for yourself that I am not storing that password or using it for anything other than authentication.
+# However, I still strongly recommend that you select a *unique* password for this account; One that you do not use anywhere else, because it will be stored in plaintext in this config file on your computer.
+client_id = xxx
+secret = xxx
+username = banana_for_scale
+password = hunter2
 
 # Should the bot read /new in each subreddit?
 # 1 = yes, 0 = no
@@ -31,12 +36,18 @@ read_new = 1
 read_hot = 1
 
 # Interval
-# The number of hours between reading reddit
+# The number of minutes between reading reddit
 # If you have the bot reading any large subreddits with hundreds of comments on every thread, keep this low.
 # Otherwise you'll end up with a very large brain file very quickly, which will cause performance issues sooner or later.
 # On the other hand, if you're reading a bunch of smaller, less active subreddits feel free to have the bot check fairly frequently.
-# Default is 12 hours, or twice a day.
-interval = 12
+# Default is 720 minutes (12 hours), or twice a day.
+interval = 720
+
+# Read On Start
+# Enable this is you want the bot to read reddit immediately after the process is started.
+# Otherwise it will not read reddit until the time in the interval field has elapsed.
+# 1 = yes, 0 = no
+read_on_start = 0
 
 # The next section covers options for the Discord bot.
 [discord]
@@ -126,3 +137,14 @@ tweet_interval = 3600
 # To see more info about what the twitter code is doing, enable this.
 # 1 = on, 0 = off
 verbose = 0
+
+# This section is for Last.FM Now Playing info
+[lastfm]
+# You will need a Last.FM Developer API account for this script to work.
+# There is no way around it, since the request requires an API key and I will not share my own.
+# Fortunately, this is easy to get! Simply head over to http://www.last.fm/api/account/create
+# Once your account is created, the site will display your API Key and API Secret.
+# WRITE THESE DOWN! Last.FM apparently has no way to look them up later, so don't lose them.
+# This script only requires the api key.
+api_key = xxx
+
