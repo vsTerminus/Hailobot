@@ -83,6 +83,11 @@ verbose = 1
 # 1 = yes, 0 = no
 learn = 0
 
+# Tweet Channels
+# Paste the channel IDs here that you want the bot to also type its tweets into.
+# Separate multiple channels with commas.
+tweet_channels = 123456789000000,098765432111111
+
 # Next we'll deal with IRC
 [irc]
 

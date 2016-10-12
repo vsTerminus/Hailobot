@@ -10,7 +10,6 @@ use Net::Twitter;
 use Config::Tiny;
 use Mojo::IOLoop;
 use Reddit::Client;
-use Net::Async::LastFM;
 
 # Fallback to "config.ini" if the user does not pass in a config file.
 my $config_file = $ARGV[0] // 'config.ini';
@@ -20,11 +19,7 @@ say localtime(time) . " - Loaded Config: $config_file";
 # Create the Hailo Object
 my $hailo = Hailo->new({'brain' => $config->{'hailo'}->{'brain_file'}});
 
-# Create the Net::Async::LastFM object
-my $lastfm = Net::Async::LastFM->new(
-    api_key     => $config->{'lastfm'}->{'api_key'}
-);
-
+my $discord;
 
 #######################
 #
@@ -66,7 +61,20 @@ if ( $config->{'twitter'}->{'use_twitter'} )
     # If we are configured for periodic random tweets, set that up now.
     if ( $config->{'twitter'}->{'tweet_interval'} )
     {
-        Mojo::IOLoop->recurring($config->{'twitter'}->{'tweet_interval'} => sub { send_tweet() });
+        Mojo::IOLoop->recurring($config->{'twitter'}->{'tweet_interval'} => 
+            sub 
+            { 
+                my $message = send_tweet();
+                my $tchans = $config->{'discord'}->{'tweet_channels'};
+                if ( defined $tchans )
+                {
+                    foreach my $chan (split(',', $tchans))
+                    {
+                        $discord->send_message($chan, $message);
+                    }
+                }
+            }
+        );
     }
 }
 
@@ -115,14 +123,14 @@ sub send_tweet
 
     $result = eval 
     {
-        $result = defined $reply_to ? $twitter->update($message, {in_reply_to_status_id => $reply_to}) : $twitter->update($message);
+        defined $reply_to ? $twitter->update($message, {in_reply_to_status_id => $reply_to}) : $twitter->update($message);
     };
 
     say localtime(time) . " - Sent tweet: $message";
     
     say $@ if $@;
 
-    return $result;
+    return $message;
 }
 
 # This generates a length-restricted message for twitter
@@ -158,7 +166,7 @@ my $discord_id;
 
 say localtime(time) . " - Using Discord." if $config->{'discord'}->{'use_discord'} and $config->{'discord'}->{'verbose'};
 
-my $discord = Net::Discord->new(
+$discord = Net::Discord->new(
     'token'     => $config->{'discord'}->{'token'},
     'name'      => $config->{'discord'}->{'name'},
     'url'       => $config->{'discord'}->{'redirect_url'},
@@ -170,22 +178,6 @@ my $discord = Net::Discord->new(
     'reconnect' => $config->{'discord'}->{'auto_reconnect'},
     'verbose'   => $config->{'discord'}->{'verbose'},
 );
-
-my %commands = (
-    'np' => { 'func' => \&cmd_nowplaying }
-);
-
-sub cmd_nowplaying
-{
-    my ($channel, $author, $user) = @_;
-
-    $user = $author unless defined $user and length $user > 0;
-
-    my $np = $lastfm->nowplaying($user);
-
-    $discord->send_message( $channel, "NP: " . $np );
-}
-
 
 sub discord_on_ready
 {
@@ -221,19 +213,9 @@ sub discord_on_message_create
     {
         $msg =~ s/^$discord_name.? ?(\w+)? ?(.*)$//i;   # Remove the username. Can I do this as part of the if statement?
 
-        # We're going to do a few very basic commands. Nothing fancy. Probably doesn't warrant
-        # its own commands module.
-        if ( defined $1 and exists $commands{$1} )
-        {
-            # Do the command.
-            $commands{$1}->{func}->($channel, $author->{'username'}, $2);
-        }
-        else # If there is no command, generate a random response.
-        {
-            $discord->start_typing($channel); # Tell the channel we're thinking about a response
-            my $reply = $hailo->reply($msg);    # Sometimes this takes a while.
-            $discord->send_message( $channel, $reply ); # Send the response.
-        }
+        $discord->start_typing($channel); # Tell the channel we're thinking about a response
+        my $reply = $hailo->reply($msg);    # Sometimes this takes a while.
+        $discord->send_message( $channel, $reply ); # Send the response.
     }
 
 }
